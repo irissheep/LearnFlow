@@ -1,0 +1,13 @@
+.git
+**/.idea
+**/node_modules
+**/.venv
+**/target
+**/__pycache__
+**/.pytest_cache
+backend/config
+.env
+.env.*
+!.env.example
+work
+outputs

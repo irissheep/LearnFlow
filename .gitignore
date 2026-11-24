@@ -1,0 +1,27 @@
+.env
+.env.*
+!.env.example
+!.env.*.example
+**/application-local.yml
+**/application-local.yaml
+**/application-local.properties
+**/target/
+**/node_modules/
+**/dist/
+**/.venv/
+**/__pycache__/
+*.py[cod]
+work/
+outputs/
+
+# Local IDE configuration may contain database credentials.
+.idea/
+
+**/.pytest_cache/
+**/.mypy_cache/
+*.log
+**/http-client.private.env.json
+
+# Local diagram skill and generated artifacts.
+.agents/skills/archify/
+.archify/

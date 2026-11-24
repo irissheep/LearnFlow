@@ -1,0 +1,74 @@
+name: learnflow
+services:
+  mysql:
+    image: mysql:8.0.33
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-learnflow}
+      MYSQL_USER: ${MYSQL_USER:-learnflow_app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Initialize .env first}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Initialize .env first}
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    volumes: ["../work/docker/mysql:/var/lib/mysql"]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: ["../work/docker/redis:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+  ai:
+    build: { context: .., dockerfile: ai-service/Dockerfile }
+    environment:
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:?Initialize .env first}
+      AI_PROVIDER: ${AI_PROVIDER:-local}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4.1-mini}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      CHROMA_DIR: /data/chroma
+    volumes: ["../work/docker/chroma:/data/chroma"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      start_period: 60s
+      retries: 6
+    restart: unless-stopped
+  backend:
+    build: { context: .., dockerfile: backend/Dockerfile }
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-learnflow}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC
+      DB_USERNAME: ${MYSQL_USER:-learnflow_app}
+      DB_PASSWORD: ${MYSQL_PASSWORD:?Initialize .env first}
+      SERVER_ADDRESS: 0.0.0.0
+      REDIS_HOST: redis
+      CACHE_ENABLED: "true"
+      AI_SERVICE_URL: http://ai:8000
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:?Initialize .env first}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/api/health"]
+      interval: 10s
+      timeout: 3s
+      start_period: 30s
+      retries: 12
+    restart: unless-stopped
+  frontend:
+    build: { context: .., dockerfile: frontend/Dockerfile }
+    ports: ["8088:80"]
+    depends_on:
+      backend: { condition: service_healthy }
+    restart: unless-stopped
